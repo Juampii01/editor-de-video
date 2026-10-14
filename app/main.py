@@ -12,8 +12,8 @@ import threading
 import time
 import uuid
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -21,6 +21,7 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPTS = os.path.join(RAIZ, "app", "editor")
 PROYECTOS = os.path.join(RAIZ, "proyectos")
 ENV = os.path.join(RAIZ, ".env")
+AJUSTES = os.path.join(RAIZ, "ajustes.json")
 PY = sys.executable
 CLAVES = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"]
 EXT_VIDEO = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi"}
@@ -29,7 +30,7 @@ EXT_IMG = {".png", ".jpg", ".jpeg", ".webp"}
 sys.path.insert(0, SCRIPTS)
 import editar  # noqa: E402  (piezas() es la misma lógica de silencios del render)
 
-from . import ia  # noqa: E402
+from . import chatgpt, ia  # noqa: E402
 
 os.makedirs(PROYECTOS, exist_ok=True)
 _locks = {}
@@ -255,6 +256,8 @@ def ver_config(forzar: bool = False):
     return {"claves": {k: bool(os.environ.get(k)) for k in CLAVES},
             "anthropic": {"conectado": s["ok"], "modo": modo_anthropic(), "detalle": s["detalle"],
                           "ant": bool(shutil.which("ant"))},
+            "chatgpt": chatgpt.estado(),
+            **motor(),
             "ffmpeg": bool(shutil.which("ffmpeg")),
             "libass": preparar_ffmpeg(),
             "modelo_descargado": os.path.isdir(os.path.expanduser("~/.cache/editor-de-video/parakeet-v3"))}
@@ -281,6 +284,72 @@ def cerrar_sesion():
         subprocess.run(["ant", "auth", "logout"], capture_output=True)
     _sesion["cuando"] = 0
     return ver_config(forzar=True)
+
+
+# ----- motor para decidir los cortes: Claude o GPT (con el plan de ChatGPT) -----
+
+def motor():
+    a = leer_json(AJUSTES, {}) or {}
+    return {"motor": a.get("motor", "claude"), "modelo": a.get("modelo_gpt")}
+
+
+class Ajustes(BaseModel):
+    motor: str | None = None
+    modelo_gpt: str | None = None
+
+
+@app.post("/api/ajustes")
+def guardar_ajustes(a: Ajustes):
+    actual = leer_json(AJUSTES, {}) or {}
+    if a.motor is not None:
+        if a.motor not in ("claude", "gpt"):
+            raise HTTPException(400, "Motor inválido")
+        actual["motor"] = a.motor
+    if a.modelo_gpt is not None:
+        actual["modelo_gpt"] = a.modelo_gpt
+    escribir_json(AJUSTES, actual)
+    return ver_config()
+
+
+@app.get("/api/chatgpt/login")
+def chatgpt_login(request: Request):
+    # OpenAI exige un callback en 127.0.0.1 (no localhost); solo puede cambiar el puerto.
+    puerto = request.url.port or 8000
+    return RedirectResponse(chatgpt.url_login(f"http://127.0.0.1:{puerto}/api/chatgpt/callback"))
+
+
+@app.get("/api/chatgpt/callback", response_class=HTMLResponse)
+def chatgpt_callback(request: Request):
+    try:
+        chatgpt.completar_login(dict(request.query_params))
+        a = leer_json(AJUSTES, {}) or {}
+        if not a.get("modelo_gpt"):
+            lista = chatgpt.modelos()
+            if lista:
+                a["modelo_gpt"] = lista[0]["slug"]
+        a["motor"] = "gpt"
+        escribir_json(AJUSTES, a)
+        titulo, texto = "Listo", "Tu cuenta de ChatGPT quedó conectada. Ya podés cerrar esta pestaña y volver al editor."
+    except chatgpt.ErrorChatGPT as e:
+        titulo, texto = "No se pudo conectar", str(e)
+    return f"""<!doctype html><meta charset="utf-8"><title>{titulo}</title>
+<body style="font:15px system-ui;background:#0f1012;color:#ececf0;display:grid;place-items:center;height:100vh;margin:0">
+<div style="max-width:420px;text-align:center"><h2>{titulo}</h2><p style="color:#9a9ca5">{texto}</p></div>
+<script>setTimeout(() => window.close(), 2500)</script></body>"""
+
+
+@app.post("/api/chatgpt/cerrar")
+def chatgpt_cerrar():
+    chatgpt.cerrar_sesion()
+    return ver_config()
+
+
+@app.get("/api/chatgpt/modelos")
+def chatgpt_modelos():
+    try:
+        return chatgpt.modelos()
+    except chatgpt.ErrorChatGPT as e:
+        raise HTTPException(400, str(e))
 
 
 class Config(BaseModel):
@@ -394,7 +463,13 @@ def _requiere_transcripcion(pid):
     tr = leer_json(ruta(pid, "transcripcion.json"))
     if not tr:
         raise HTTPException(400, "Primero hay que transcribir el video")
-    if not estado_anthropic()["ok"]:
+    m = motor()
+    if m["motor"] == "gpt":
+        if not chatgpt.estado()["conectado"]:
+            raise HTTPException(400, "Conectá tu cuenta de ChatGPT en Configuración.")
+        if not m.get("modelo"):
+            raise HTTPException(400, "Elegí un modelo de GPT en Configuración.")
+    elif not estado_anthropic()["ok"]:
         raise HTTPException(400, "Conectá tu cuenta de Anthropic en Configuración.")
     return tr
 
@@ -402,10 +477,10 @@ def _requiere_transcripcion(pid):
 @app.post("/api/proyectos/{pid}/candidatos")
 def candidatos(pid: str):
     tr = _requiere_transcripcion(pid)
-    e = estado(pid)
+    e, m = estado(pid), motor()
 
     def fn():
-        guardar_estado(pid, candidatos=ia.generar_candidatos(tr, e["cta"], e["notas"]))
+        guardar_estado(pid, candidatos=ia.generar_candidatos(tr, e["cta"], e["notas"], motor=m))
 
     trabajo(pid, "candidatos", fn)
     return {"ok": True}
@@ -420,6 +495,7 @@ def crear_piezas(pid: str, sel: Seleccion):
     """Recortes de YouTube: arma un plan por cada candidato elegido."""
     tr = _requiere_transcripcion(pid)
     e = estado(pid)
+    m = motor()
     elegidos = [e["candidatos"][i] for i in sel.indices if 0 <= i < len(e["candidatos"])]
     if not elegidos:
         raise HTTPException(400, "Elegí al menos un fragmento")
@@ -428,7 +504,8 @@ def crear_piezas(pid: str, sel: Seleccion):
         piezas = list(e.get("piezas", []))
         for c in elegidos:
             n = max(piezas, default=0) + 1
-            r = ia.generar_plan(tr, "reel", e["cta"], e["notas"], [], rango=(c["desde"], c["hasta"]))
+            r = ia.generar_plan(tr, "reel", e["cta"], e["notas"], [], rango=(c["desde"], c["hasta"]),
+                               motor=m)
             r["rango"] = [c["desde"], c["hasta"]]
             escribir_json(ruta(pid, f"plan-{n}.ia.json"), r)
             escribir_json(ruta(pid, f"plan-{n}.json"), plan_desde_ia(r, "reel", tr["palabras"]))
@@ -454,12 +531,13 @@ def generar_plan(pid: str, n: int | None = None, p: Pedido = Pedido()):
     previo_ia = leer_json(ruta(pid, f"plan-{n}.ia.json"))
     previo = leer_json(ruta(pid, f"plan-{n}.json"))
     imgs = ver(pid)["imagenes"]
+    m = motor()
 
     def fn():
         rango = tuple(previo_ia["rango"]) if previo_ia and previo_ia.get("rango") else None
         r = ia.generar_plan(tr, formato, e["cta"], e["notas"], imgs, rango=rango,
                             plan_previo=previo_ia if p.indicaciones else None,
-                            indicaciones=p.indicaciones)
+                            indicaciones=p.indicaciones, motor=m)
         if rango:
             r["rango"] = list(rango)
         escribir_json(ruta(pid, f"plan-{n}.ia.json"), r)

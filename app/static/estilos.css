@@ -142,3 +142,5 @@ dialog::backdrop { background: rgba(0,0,0,.6); }
   main { padding: 16px; }
 }
 .cmd { background: var(--bg); border: 1px solid var(--borde); padding: 8px 10px; border-radius: 7px; font-size: 12px; user-select: all; }
+.formatos.dos { grid-template-columns: 1fr 1fr; }
+.btn.chatgpt { background: #fff; color: #0d0d0d; border-color: #fff; font-weight: 600; }

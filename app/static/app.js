@@ -12,8 +12,8 @@ const FORMATOS = {
 };
 const TRABAJOS = {
   transcribir: "Transcribiendo (la primera vez descarga el modelo de ~490 MB)…",
-  candidatos: "Claude está buscando los mejores fragmentos…",
-  plan: "Claude está armando el plan de cortes…",
+  candidatos: "La IA está buscando los mejores fragmentos…",
+  plan: "La IA está armando el plan de cortes…",
   broll: "Generando imágenes de b-roll…",
   borrador: "Renderizando el borrador…",
   final: "Renderizando el video final…",
@@ -67,7 +67,7 @@ function vistaNuevo() {
   $("#main").innerHTML = `<div class="contenido">
     <h1>Nuevo video</h1>
     <p class="sutil">Subí el video y elegí el formato. El original no se modifica nunca.</p>
-    ${S.cfg && !conectado() ? `<div class="aviso">Conectá tu cuenta de Anthropic para que Claude decida los cortes. <a href="#" id="ir-cfg" style="color:inherit">Conectar</a>.</div>` : ""}
+    ${S.cfg && !conectado() ? `<div class="aviso">Conectá una cuenta (Claude o ChatGPT) para que la IA decida los cortes. <a href="#" id="ir-cfg" style="color:inherit">Conectar</a>.</div>` : ""}
     <div class="tarjeta">
       <div class="drop" id="drop">
         <div class="grande" id="drop-txt">${n.video ? "🎬 " + esc(n.video.name) : "Arrastrá el video acá o hacé clic"}</div>
@@ -186,12 +186,12 @@ function vistaProyecto() {
       <div class="frases">${tr.frases.map((f) => `<div><span>${mmss(f.s)}</span>${esc(f.texto)}</div>`).join("")}</div></details>` : ""}
     </div>`;
 
-  if (tr && sinClave) html += `<div class="aviso">Conectá tu cuenta de Anthropic en Configuración para que Claude arme el plan.</div>`;
+  if (tr && sinClave) html += `<div class="aviso">Conectá tu cuenta en Configuración para que ${nombreMotor()} arme el plan.</div>`;
 
   if (tr && p.formato === "recortes") {
     html += `<div class="tarjeta"><div class="paso ${p.candidatos.length ? "hecho" : ""}"><span class="num">2</span><b>Fragmentos candidatos</b>
       <span class="espacio"></span><button class="btn ${p.candidatos.length ? "" : "primario"}" data-acc="candidatos" ${ocupado || sinClave ? "disabled" : ""}>
-      ${p.candidatos.length ? "Buscar de nuevo" : "Buscar fragmentos con Claude"}</button></div>
+      ${p.candidatos.length ? "Buscar de nuevo" : "Buscar fragmentos con ${nombreMotor()}"}</button></div>
       ${p.candidatos.length ? `<div style="margin-top:12px" id="cands">${p.candidatos.map((c, i) => `
         <label class="cand"><input type="checkbox" value="${i}">
           <div><b>${esc(c.titulo)}</b> <span class="sutil chico">${mmss(c.desde)} – ${mmss(c.hasta)}</span>
@@ -200,8 +200,8 @@ function vistaProyecto() {
     </div>`;
   } else if (tr && !p.piezas.length) {
     html += `<div class="tarjeta"><div class="paso"><span class="num">2</span><b>Plan de cortes</b><span class="espacio"></span>
-      <button class="btn primario" data-acc="plan" ${ocupado || sinClave ? "disabled" : ""}>Armar el plan con Claude</button></div>
-      <p class="sutil chico">Claude elige el gancho, saca lo que no suma y cierra con el llamado a la acción.</p></div>`;
+      <button class="btn primario" data-acc="plan" ${ocupado || sinClave ? "disabled" : ""}>Armar el plan con ${nombreMotor()}</button></div>
+      <p class="sutil chico">${nombreMotor()} elige el gancho, saca lo que no suma y cierra con el llamado a la acción.</p></div>`;
   }
 
   if (p.piezas.length) {
@@ -276,7 +276,7 @@ function vistaPieza() {
         ${brollPend ? `<select id="calidad" style="width:auto"><option value="low">Calidad baja</option><option value="medium" selected>Calidad media</option><option value="high">Calidad alta</option></select>
         <button class="btn" data-acc="broll" ${ocupado ? "disabled" : ""}>Generar ${brollPend} imagen${brollPend > 1 ? "es" : ""}</button>` : ""}</div>
 
-      <h3>Pedirle cambios a Claude</h3>
+      <h3>Pedirle cambios a ${nombreMotor()}</h3>
       <textarea id="indicaciones" placeholder="Ej: el gancho tiene que ser la parte de los 3 clientes; más corto, menos de 40 s"></textarea>
       <div class="fila fin" style="margin-top:8px"><button class="btn" data-acc="replan" ${ocupado ? "disabled" : ""}>Rehacer el plan</button></div>
     </div>
@@ -470,17 +470,47 @@ async function subirImagenes(e) {
 
 // ---------- configuración ----------
 
-const conectado = () => !!S.cfg?.anthropic?.conectado;
+// Listo para armar planes con el motor elegido (Claude o GPT)
+const conectado = () => {
+  const c = S.cfg;
+  if (!c) return false;
+  return c.motor === "gpt" ? !!(c.chatgpt?.conectado && c.modelo) : !!c.anthropic?.conectado;
+};
+const nombreMotor = () => (S.cfg?.motor === "gpt" ? "GPT" : "Claude");
 
 async function cargarConfig(forzar = false) { S.cfg = await api(`/api/config${forzar ? "?forzar=true" : ""}`); }
+
 function pintarConfig() {
-  const c = S.cfg, a = c.anthropic;
+  const c = S.cfg, a = c.anthropic, g = c.chatgpt;
   $("#cfg-estado").innerHTML = [
     ["ffmpeg", c.ffmpeg], ["Subtítulos (libass)", c.libass], ["Modelo de transcripción", c.modelo_descargado],
-    ["OpenAI", c.claves.OPENAI_API_KEY], ["Gemini", c.claves.GEMINI_API_KEY],
+    ["OpenAI (b-roll)", c.claves.OPENAI_API_KEY], ["Gemini (b-roll)", c.claves.GEMINI_API_KEY],
   ].map(([n, ok]) => `<span class="punto ${ok ? "si" : "no"}">${n}</span>`).join("");
-  let html;
-  if (a.conectado) {
+
+  $("#cfg-motor").innerHTML = [
+    ["claude", "Claude", "Con tu cuenta de Anthropic Console (pago por uso)."],
+    ["gpt", "GPT", "Con tu plan de ChatGPT Plus o Pro, sin costo extra."],
+  ].map(([k, t, d]) => `<div class="formato ${c.motor === k ? "sel" : ""}" data-motor="${k}"><b>${t}</b><span class="sutil chico">${d}</span></div>`).join("");
+  document.querySelectorAll("[data-motor]").forEach((el) => (el.onclick = async () => {
+    S.cfg = await api("/api/ajustes", { method: "POST", body: { motor: el.dataset.motor } });
+    pintarConfig();
+  }));
+  $("#cfg-avanzado").hidden = c.motor === "gpt";
+
+  let html = "";
+  if (c.motor === "gpt") {
+    if (g.conectado) {
+      html = `<div class="fila"><span class="punto si">Conectado como ${esc(g.email || "tu cuenta de ChatGPT")}</span><span class="espacio"></span>
+        <button type="button" class="btn mini" id="cfg-gpt-salir">Desconectar</button></div>
+        <label style="margin-top:12px">Modelo <select id="cfg-modelo"><option>${esc(c.modelo || "Cargando…")}</option></select></label>`;
+    } else {
+      html = `<p class="sutil chico">Iniciá sesión con tu cuenta de ChatGPT y aceptá usar tu plan en esta app. El uso cuenta
+        dentro de los límites de tu plan.</p>
+        <button type="button" class="btn chatgpt" id="cfg-gpt-login">Continue with ChatGPT</button>
+        ${S.esperandoLogin ? `<span class="sutil chico"><span class="spin"></span>Esperando que termines en la otra pestaña…</span>` : ""}`;
+    }
+    html += `<p class="sutil chico">Con el plan de ChatGPT no se pueden generar imágenes: para el b-roll hace falta una clave de API.</p>`;
+  } else if (a.conectado) {
     html = `<div class="fila"><span class="punto si">Conectado ${a.modo === "clave" ? "con clave de API" : "con tu cuenta"}</span><span class="espacio"></span>
       ${a.modo === "clave" ? `<button type="button" class="btn mini" id="cfg-quitar">Quitar clave</button>`
                            : `<button type="button" class="btn mini" id="cfg-salir">Cerrar sesión</button>`}</div>`;
@@ -494,18 +524,36 @@ function pintarConfig() {
       <pre class="cmd">brew install anthropics/tap/ant</pre>
       <button type="button" class="btn mini" id="cfg-revisar">Ya la instalé</button>`;
   }
-  if (a.detalle) html += `<p class="chico" style="color:var(--error)">${esc(a.detalle)}</p>`;
-  html += `<p class="sutil chico">La suscripción de claude.ai (Pro/Max) no se puede usar en apps de terceros; hace falta una cuenta de Anthropic Console.</p>`;
+  if (c.motor !== "gpt") {
+    if (a.detalle) html += `<p class="chico" style="color:var(--error)">${esc(a.detalle)}</p>`;
+    html += `<p class="sutil chico">La suscripción de claude.ai (Pro/Max) no se puede usar en apps de terceros; hace falta una cuenta de Anthropic Console.</p>`;
+  }
   $("#cfg-cuenta").innerHTML = html;
+
   $("#cfg-login")?.addEventListener("click", login);
+  $("#cfg-gpt-login")?.addEventListener("click", loginChatGPT);
   $("#cfg-revisar")?.addEventListener("click", async () => { await cargarConfig(true); pintarConfig(); });
   $("#cfg-salir")?.addEventListener("click", async () => { S.cfg = await api("/api/sesion/cerrar", { method: "POST" }); pintarConfig(); });
+  $("#cfg-gpt-salir")?.addEventListener("click", async () => { S.cfg = await api("/api/chatgpt/cerrar", { method: "POST" }); pintarConfig(); });
   $("#cfg-quitar")?.addEventListener("click", async () => {
     S.cfg = await api("/api/config", { method: "POST", body: { claves: { ANTHROPIC_API_KEY: null } } }); pintarConfig();
   });
+  if ($("#cfg-modelo")) cargarModelos();
 }
-async function login() {
-  try { await api("/api/sesion/iniciar", { method: "POST" }); } catch (e) { return fallo(e); }
+
+async function cargarModelos() {
+  const sel = $("#cfg-modelo");
+  try {
+    const lista = await api("/api/chatgpt/modelos");
+    sel.innerHTML = lista.map((m) => `<option value="${esc(m.slug)}" ${m.slug === S.cfg.modelo ? "selected" : ""}>${esc(m.nombre)}</option>`).join("");
+    if (!lista.some((m) => m.slug === S.cfg.modelo) && lista[0]) {
+      S.cfg = await api("/api/ajustes", { method: "POST", body: { modelo_gpt: lista[0].slug } });
+    }
+    sel.onchange = async () => { S.cfg = await api("/api/ajustes", { method: "POST", body: { modelo_gpt: sel.value } }); };
+  } catch (e) { sel.innerHTML = `<option>${esc(e.message)}</option>`; }
+}
+
+async function esperarConexion() {
   S.esperandoLogin = true; pintarConfig();
   for (let i = 0; i < 100 && S.esperandoLogin; i++) {   // ~5 minutos
     await new Promise((r) => setTimeout(r, 3000));
@@ -514,6 +562,14 @@ async function login() {
   }
   S.esperandoLogin = false; pintarConfig();
   if (conectado()) ruta();
+}
+async function login() {
+  try { await api("/api/sesion/iniciar", { method: "POST" }); } catch (e) { return fallo(e); }
+  esperarConexion();
+}
+function loginChatGPT() {
+  window.open("/api/chatgpt/login", "_blank");
+  esperarConexion();
 }
 async function abrirConfig() { await cargarConfig(true); pintarConfig(); $("#dlg-config").showModal(); }
 $("#btn-config").onclick = abrirConfig;
@@ -524,7 +580,7 @@ $("#cfg-guardar").onclick = async (e) => {
   document.querySelectorAll("#dlg-config input").forEach((i) => { if (i.value.trim()) claves[i.name] = i.value; i.value = ""; });
   try { S.cfg = await api("/api/config", { method: "POST", body: { claves } }); pintarConfig(); }
   catch (err) { return fallo(err); }
-  if (claves.ANTHROPIC_API_KEY && !conectado()) return alert("Esa clave de Anthropic no funcionó.");
+  if (claves.ANTHROPIC_API_KEY && !S.cfg.anthropic.conectado) return alert("Esa clave de Anthropic no funcionó.");
   $("#dlg-config").close();
   ruta();
 };

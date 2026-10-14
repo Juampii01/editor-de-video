@@ -61,6 +61,17 @@ si preferís.
 
 El modelo que usa es Claude Opus 5.5. Armar el plan de un video de 10 minutos suele costar menos de un dólar.
 
+## O usar GPT con tu plan de ChatGPT
+
+Si tenés ChatGPT Plus o Pro, podés usar GPT para decidir los cortes sin pagar API aparte:
+**⚙ Configuración → GPT → Continue with ChatGPT**. Se abre una pestaña de OpenAI: iniciás sesión,
+aceptás usar tu plan en esta app y listo. El uso cuenta dentro de los límites de tu plan, y podés
+elegir el modelo entre los que tenga tu cuenta.
+
+Usa [Sign in with ChatGPT](https://developers.openai.com/siwc) para apps open source. Los tokens se
+guardan solo en tu compu, en `~/.config/editor-de-video/`. Con el plan de ChatGPT no se pueden
+generar imágenes, así que para el b-roll sigue haciendo falta una clave de API.
+
 ## B-roll con IA (opcional)
 
 Claude sugiere imágenes de apoyo para los momentos concretos del video. Para generarlas, cargá en
@@ -73,7 +84,8 @@ imágenes o no usar b-roll.
 ```
 app/
   main.py          API (FastAPI): proyectos, trabajos en segundo plano, login
-  ia.py            Decisiones editoriales con Claude (salida estructurada)
+  ia.py            Decisiones editoriales (reglas, esquemas y llamada a Claude)
+  chatgpt.py       Sign in with ChatGPT y llamadas a GPT con el plan del usuario
   editor/          Los scripts que hacen el trabajo pesado
     transcribir.py   Transcripción con tiempos por palabra
     editar.py        Corte, encuadre, subtítulos y audio a partir de un plan.json

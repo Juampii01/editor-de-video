@@ -1,4 +1,4 @@
-"""Decisiones editoriales con Claude: elegir candidatos y armar el plan de cortes.
+"""Decisiones editoriales con Claude (o GPT vía ChatGPT): elegir candidatos y armar el plan de cortes.
 
 Claude trabaja con tiempos del video ORIGINAL (es lo único que ve en la transcripción).
 Los textos, gráficos y b-roll se convierten después a tiempos del video final con
@@ -91,7 +91,7 @@ class ErrorIA(Exception):
     pass
 
 
-def _pedir(sistema, usuario, esquema):
+def _pedir_claude(sistema, usuario, esquema):
     client = anthropic.Anthropic()
     try:
         with client.beta.messages.stream(
@@ -124,6 +124,16 @@ def _pedir(sistema, usuario, esquema):
         raise ErrorIA("Claude devolvió un plan que no se pudo leer. Probá de nuevo.")
 
 
+def _pedir(motor, sistema, usuario, esquema):
+    """motor: {"motor": "claude"} o {"motor": "gpt", "modelo": "<slug>"}."""
+    if (motor or {}).get("motor") == "gpt":
+        from . import chatgpt
+        if not motor.get("modelo"):
+            raise ErrorIA("Elegí un modelo de GPT en Configuración.")
+        return chatgpt.pedir_json(motor["modelo"], sistema, usuario, esquema)
+    return _pedir_claude(sistema, usuario, esquema)
+
+
 def _frases_txt(frases, desde=None, hasta=None):
     out = []
     for f in frases:
@@ -141,7 +151,8 @@ FORMATOS = {
 }
 
 
-def generar_plan(transcripcion, formato, cta, notas, imagenes, rango=None, plan_previo=None, indicaciones=""):
+def generar_plan(transcripcion, formato, cta, notas, imagenes, rango=None, plan_previo=None, indicaciones="",
+                 motor=None):
     desde, hasta = rango if rango else (None, None)
     partes = [
         f"Formato: {FORMATOS.get(formato, FORMATOS['reel'])}",
@@ -159,10 +170,10 @@ def generar_plan(transcripcion, formato, cta, notas, imagenes, rango=None, plan_
     if indicaciones:
         partes.append(f"Cambios que pide el usuario sobre el plan anterior: {indicaciones}")
     partes.append("Transcripción:\n" + _frases_txt(transcripcion["frases"], desde, hasta))
-    return _pedir(REGLAS, "\n\n".join(partes), ESQUEMA_PLAN)
+    return _pedir(motor, REGLAS, "\n\n".join(partes), ESQUEMA_PLAN)
 
 
-def generar_candidatos(transcripcion, cta, notas):
+def generar_candidatos(transcripcion, cta, notas, motor=None):
     usuario = "\n\n".join([
         "Este es un video largo. Proponé entre 3 y 5 fragmentos que funcionen como reels "
         "independientes de 30 a 60 segundos, cada uno con una sola idea y un gancho propio. "
@@ -172,4 +183,4 @@ def generar_candidatos(transcripcion, cta, notas):
         f"Notas del usuario: {notas}" if notas else "",
         "Transcripción:\n" + _frases_txt(transcripcion["frases"]),
     ])
-    return _pedir(REGLAS, usuario, ESQUEMA_CANDIDATOS)["candidatos"]
+    return _pedir(motor, REGLAS, usuario, ESQUEMA_CANDIDATOS)["candidatos"]

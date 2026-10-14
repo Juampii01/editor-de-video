@@ -5,3 +5,6 @@ anthropic>=1.13
 sherpa-onnx
 numpy
 certifi
+openai
+pyjwt[crypto]
+httpx
