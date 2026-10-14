@@ -15,6 +15,7 @@ const TRABAJOS = {
   candidatos: "La IA está buscando los mejores fragmentos…",
   plan: "La IA está armando el plan de cortes…",
   broll: "Generando imágenes de b-roll…",
+  videos: "Buscando videos en Pexels…",
   borrador: "Renderizando el borrador…",
   final: "Renderizando el video final…",
 };
@@ -149,7 +150,7 @@ function vigilar() {
       vigilar();
     } else {
       const tipo = d.trabajo?.tipo;
-      if (tipo === "plan" || tipo === "broll") S.sucio = false;
+      if (["plan", "broll", "videos"].includes(tipo)) S.sucio = false;
       await abrir(id);
     }
   }, 1500);
@@ -229,6 +230,7 @@ function vistaPieza() {
   const sub = plan.subtitulos || (plan.subtitulos = {});
   const durEstimada = plan.cortes.reduce((a, c) => a + Math.max(0, c.hasta - c.desde), 0);
   const claveImg = S.cfg?.codex?.conectado || S.cfg?.claves?.OPENAI_API_KEY || S.cfg?.claves?.GEMINI_API_KEY;
+  const creditos = (plan.broll || []).filter((b) => b.credito);
   const brollPend = (plan.broll || []).filter((b) => b.prompt && !b.imagen && !b.video).length;
   const v = Date.now();
 
@@ -272,15 +274,20 @@ function vistaPieza() {
       <h3>B-roll <span class="sutil chico" style="text-transform:none">(tiempos del video final · nunca en el gancho ni en el cierre)</span></h3>
       ${filas("broll", plan.broll, (b, i) => `
         <td>${b.imagen || b.video ? `<div class="fila">${b.imagen ? `<img src="/api/proyectos/${S.p.id}/archivo/${encodeURIComponent(b.imagen)}?v=${v}" style="width:40px;height:60px;object-fit:cover;border-radius:4px">` : "🎬"}
-          <span class="sutil chico">${esc(b.imagen || b.video)}</span><button class="btn mini" data-sinimg="${i}">Cambiar</button></div>`
-          : `<div class="fila"><input data-k="broll.${i}.prompt" value="${esc(b.prompt)}" placeholder="Escena en inglés, sin texto" style="flex:1">
+          <span class="sutil chico">${b.credito ? `Pexels · <a href="${esc(b.credito.url)}" target="_blank" style="color:inherit">${esc(b.credito.autor)}</a>` : esc(b.imagen || b.video)}</span>
+          <button class="btn mini" data-sinimg="${i}">Cambiar</button></div>`
+          : `<div class="fila"><input data-k="broll.${i}.prompt" value="${esc(b.prompt)}" placeholder="Escena en inglés, sin texto (para generar imagen)" style="flex:1">
+            <input data-k="broll.${i}.busqueda" value="${esc(b.busqueda || "")}" placeholder="Búsqueda en Pexels" title="2 a 4 palabras en inglés para buscar el video" style="width:150px">
             <label class="btn mini" style="margin:0;color:var(--texto)" title="Usar una imagen o clip tuyo">Subir tuya
               <input type="file" accept="image/*,video/mp4,video/quicktime" data-subirbroll="${i}" hidden></label></div>`}</td>`)}
       <div class="fila"><button class="btn mini" data-agregar="broll">+ B-roll</button><span class="espacio"></span>
+        ${brollPend && S.cfg?.claves?.PEXELS_API_KEY ? `<button class="btn" data-acc="videos" ${ocupado ? "disabled" : ""}>Buscar ${brollPend} video${brollPend > 1 ? "s" : ""} en Pexels (gratis)</button>` : ""}
         ${brollPend && claveImg ? `<select id="calidad" style="width:auto"><option value="low">Calidad baja</option><option value="medium" selected>Calidad media</option><option value="high">Calidad alta</option></select>
         <button class="btn" data-acc="broll" ${ocupado ? "disabled" : ""}>Generar ${brollPend} imagen${brollPend > 1 ? "es" : ""}</button>` : ""}</div>
       ${brollPend && claveImg && S.cfg?.codex?.conectado ? `<p class="sutil chico">Se generan con Codex usando tu plan de ChatGPT (≈1 minuto cada una, unas 60 por día).</p>` : ""}
-      ${brollPend && !claveImg ? `<div class="aviso">Para generar estas ${brollPend} imágenes con tu plan de ChatGPT, instalá la app de ChatGPT
+      ${brollPend && !S.cfg?.claves?.PEXELS_API_KEY ? `<p class="sutil chico">¿Videos reales en vez de imágenes? Cargá una clave gratis de
+        <a href="https://www.pexels.com/api/" target="_blank" style="color:inherit">Pexels</a> en Configuración.</p>` : ""}
+      ${brollPend && !claveImg && !S.cfg?.claves?.PEXELS_API_KEY ? `<div class="aviso">Para generar estas ${brollPend} imágenes con tu plan de ChatGPT, instalá la app de ChatGPT
         (trae Codex) o Codex CLI e iniciá sesión con <code>codex login</code>. También podés cargar una clave de OpenAI o Gemini,
         subir tus propias imágenes con "Subir tuya", o borrar los b-roll que no quieras.</div>` : ""}
 
@@ -331,6 +338,9 @@ function vistaPieza() {
       ${pz.final ? `<div class="fila" style="margin-top:10px">
         <a class="btn primario ancho" style="text-align:center;text-decoration:none" href="/api/proyectos/${S.p.id}/archivo/final-${pz.n}.mp4?descargar=true">⬇ Descargar .mp4</a>
         <a class="btn ancho" style="text-align:center;text-decoration:none" href="/api/proyectos/${S.p.id}/archivo/final-${pz.n}.srt?descargar=true">⬇ Subtítulos .srt</a></div>` : ""}
+      ${creditos.length ? `<h3>Créditos para la descripción</h3>
+        <textarea readonly rows="${creditos.length + 1}" onclick="this.select()">Videos de Pexels: ${creditos.map((c) => c.credito.autor).join(", ")}</textarea>
+        <p class="sutil chico">Pexels pide mencionarlo. Pegalo en la descripción del reel.</p>` : ""}
     </div>
   </div></div>`;
 
@@ -478,6 +488,9 @@ async function accion(acc) {
       await guardar();
       return lanzar(`/api/proyectos/${id}/broll/${n}?calidad=${$("#calidad").value}`);
     }
+    case "videos":
+      await guardar();
+      return lanzar(`/api/proyectos/${id}/broll-videos/${n}`);
     case "borrador":
     case "final":
       await guardar();
@@ -516,7 +529,7 @@ function pintarConfig() {
   const c = S.cfg, a = c.anthropic, g = c.chatgpt;
   $("#cfg-estado").innerHTML = [
     ["ffmpeg", c.ffmpeg], ["Subtítulos (libass)", c.libass], ["Modelo de transcripción", c.modelo_descargado],
-    ["Codex (b-roll con tu plan)", c.codex?.conectado], ["OpenAI (b-roll)", c.claves.OPENAI_API_KEY], ["Gemini (b-roll)", c.claves.GEMINI_API_KEY],
+    ["Codex (b-roll con tu plan)", c.codex?.conectado], ["OpenAI (b-roll)", c.claves.OPENAI_API_KEY], ["Gemini (b-roll)", c.claves.GEMINI_API_KEY], ["Pexels (videos)", c.claves.PEXELS_API_KEY],
   ].map(([n, ok]) => `<span class="punto ${ok ? "si" : "no"}">${n}</span>`).join("");
 
   $("#cfg-motor").innerHTML = [

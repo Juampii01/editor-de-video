@@ -23,7 +23,7 @@ PROYECTOS = os.path.join(RAIZ, "proyectos")
 ENV = os.path.join(RAIZ, ".env")
 AJUSTES = os.path.join(RAIZ, "ajustes.json")
 PY = sys.executable
-CLAVES = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"]
+CLAVES = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "PEXELS_API_KEY"]
 EXT_VIDEO = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi"}
 EXT_IMG = {".png", ".jpg", ".jpeg", ".webp"}
 
@@ -212,7 +212,7 @@ def plan_desde_ia(r, formato, palabras, previo=None):
         return {"desde": a, "hasta": round(b, 2)}
 
     plan["textos"] = [{**tramo(t), "texto": t["texto"], "posicion": t["posicion"]} for t in r["textos"]]
-    plan["broll"] = [{**tramo(b), "prompt": b["prompt"]} for b in r["broll"]]
+    plan["broll"] = [{**tramo(b), "prompt": b["prompt"], "busqueda": b.get("busqueda", "")} for b in r["broll"]]
     plan["graficos"] = [{**tramo(g), "imagen": g["imagen"]} for g in r["graficos"]
                         if formato == "doble" and os.path.basename(g["imagen"]) == g["imagen"]]
     return plan
@@ -595,6 +595,17 @@ def generar_broll(pid: str, n: int, calidad: str = "medium"):
     plan_path = ruta(pid, f"plan-{n}.json")
     trabajo(pid, "broll", lambda: ejecutar(
         pid, [PY, "-u", os.path.join(SCRIPTS, "generar_broll.py"), plan_path, "--calidad", calidad]))
+    return {"ok": True}
+
+
+@app.post("/api/proyectos/{pid}/broll-videos/{n}")
+def buscar_videos(pid: str, n: int):
+    """Busca clips verticales gratis en Pexels para el b-roll pendiente."""
+    if not os.environ.get("PEXELS_API_KEY"):
+        raise HTTPException(400, "Falta la clave de Pexels (es gratis). Cargala en Configuración.")
+    plan_path = ruta(pid, f"plan-{n}.json")
+    trabajo(pid, "videos", lambda: ejecutar(
+        pid, [PY, "-u", os.path.join(SCRIPTS, "buscar_broll.py"), plan_path]))
     return {"ok": True}
 
 

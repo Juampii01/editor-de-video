@@ -34,6 +34,8 @@ En pantalla doble usá siempre posicion "arriba" (el centro es de los subtítulo
 B-roll: solo donde se dice algo concreto que se puede mostrar. Entre 0 y 4, de 2 a 3
 segundos cada uno, nunca en el gancho ni en el llamado a la acción. El prompt en inglés,
 describiendo la escena, sin texto en la imagen. Tiempos del ORIGINAL dentro de un corte.
+Para cada b-roll, además, una "busqueda": 2 a 4 palabras en inglés, concretas y comunes, que encuentren
+ese clip en un banco de videos de stock (ej: "empty calendar laptop", "phone notifications").
 
 Gráficos (solo pantalla doble): asigná las imágenes disponibles a los tramos donde se
 habla de lo que muestran. Tiempos del ORIGINAL dentro de un corte. Si no hay imágenes, vacío.
@@ -63,8 +65,10 @@ ESQUEMA_PLAN = {
                            "posicion": {"type": "string", "enum": ["arriba", "centro"]}}}},
         "broll": {"type": "array", "items": {
             "type": "object", "additionalProperties": False,
-            "required": ["desde", "hasta", "prompt"],
-            "properties": {**_TRAMO["properties"], "prompt": {"type": "string"}}}},
+            "required": ["desde", "hasta", "prompt", "busqueda"],
+            "properties": {**_TRAMO["properties"], "prompt": {"type": "string"},
+                           "busqueda": {"type": "string",
+                                        "description": "2 a 4 palabras en inglés para buscar el clip en un banco de videos de stock"}}}},
         "graficos": {"type": "array", "items": {
             "type": "object", "additionalProperties": False,
             "required": ["desde", "hasta", "imagen"],

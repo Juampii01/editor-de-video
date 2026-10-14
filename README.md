@@ -78,7 +78,9 @@ La IA sugiere imágenes de apoyo para los momentos concretos del video. Para gen
 - **Con tu plan de ChatGPT, sin clave:** si tenés la app de ChatGPT (trae Codex) o
   [Codex CLI](https://github.com/openai/codex) con sesión iniciada (`codex login`), la app le pide cada
   imagen a Codex. Tarda alrededor de un minuto por imagen, y Codex corta en torno a 60 imágenes por día.
-- **Con una clave de API:** cargá en Configuración una clave de **OpenAI** (GPT Image) o **Gemini** (Nano Banana). La app te dice cuántas
+- **Con una clave de API:** cargá en Configuración una clave de **OpenAI** (GPT Image) o **Gemini** (Nano Banana).
+- **Videos de stock reales, gratis:** con una clave gratuita de [Pexels](https://www.pexels.com/api/), la app busca
+  un clip vertical para cada momento (la IA propone la búsqueda) y te deja los créditos listos para la descripción. La app te dice cuántas
 imágenes va a generar antes de hacerlo, porque cada una tiene costo. También podés usar tus propias
 imágenes o no usar b-roll.
 
