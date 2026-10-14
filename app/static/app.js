@@ -228,6 +228,7 @@ function vistaPieza() {
   const ocupado = corriendo();
   const sub = plan.subtitulos || (plan.subtitulos = {});
   const durEstimada = plan.cortes.reduce((a, c) => a + Math.max(0, c.hasta - c.desde), 0);
+  const claveImg = S.cfg?.codex?.conectado || S.cfg?.claves?.OPENAI_API_KEY || S.cfg?.claves?.GEMINI_API_KEY;
   const brollPend = (plan.broll || []).filter((b) => b.prompt && !b.imagen && !b.video).length;
   const v = Date.now();
 
@@ -270,12 +271,18 @@ function vistaPieza() {
 
       <h3>B-roll <span class="sutil chico" style="text-transform:none">(tiempos del video final · nunca en el gancho ni en el cierre)</span></h3>
       ${filas("broll", plan.broll, (b, i) => `
-        <td>${b.imagen ? `<div class="fila"><img src="/api/proyectos/${S.p.id}/archivo/${encodeURIComponent(b.imagen)}?v=${v}" style="width:40px;height:60px;object-fit:cover;border-radius:4px">
-          <span class="sutil chico">${esc(b.imagen)}</span><button class="btn mini" data-sinimg="${i}">Rehacer</button></div>`
-          : `<input data-k="broll.${i}.prompt" value="${esc(b.prompt)}" placeholder="Escena en inglés, sin texto">`}</td>`)}
+        <td>${b.imagen || b.video ? `<div class="fila">${b.imagen ? `<img src="/api/proyectos/${S.p.id}/archivo/${encodeURIComponent(b.imagen)}?v=${v}" style="width:40px;height:60px;object-fit:cover;border-radius:4px">` : "🎬"}
+          <span class="sutil chico">${esc(b.imagen || b.video)}</span><button class="btn mini" data-sinimg="${i}">Cambiar</button></div>`
+          : `<div class="fila"><input data-k="broll.${i}.prompt" value="${esc(b.prompt)}" placeholder="Escena en inglés, sin texto" style="flex:1">
+            <label class="btn mini" style="margin:0;color:var(--texto)" title="Usar una imagen o clip tuyo">Subir tuya
+              <input type="file" accept="image/*,video/mp4,video/quicktime" data-subirbroll="${i}" hidden></label></div>`}</td>`)}
       <div class="fila"><button class="btn mini" data-agregar="broll">+ B-roll</button><span class="espacio"></span>
-        ${brollPend ? `<select id="calidad" style="width:auto"><option value="low">Calidad baja</option><option value="medium" selected>Calidad media</option><option value="high">Calidad alta</option></select>
+        ${brollPend && claveImg ? `<select id="calidad" style="width:auto"><option value="low">Calidad baja</option><option value="medium" selected>Calidad media</option><option value="high">Calidad alta</option></select>
         <button class="btn" data-acc="broll" ${ocupado ? "disabled" : ""}>Generar ${brollPend} imagen${brollPend > 1 ? "es" : ""}</button>` : ""}</div>
+      ${brollPend && claveImg && S.cfg?.codex?.conectado ? `<p class="sutil chico">Se generan con Codex usando tu plan de ChatGPT (≈1 minuto cada una, unas 60 por día).</p>` : ""}
+      ${brollPend && !claveImg ? `<div class="aviso">Para generar estas ${brollPend} imágenes con tu plan de ChatGPT, instalá la app de ChatGPT
+        (trae Codex) o Codex CLI e iniciá sesión con <code>codex login</code>. También podés cargar una clave de OpenAI o Gemini,
+        subir tus propias imágenes con "Subir tuya", o borrar los b-roll que no quieras.</div>` : ""}
 
       <h3>Pedirle cambios a ${nombreMotor()}</h3>
       <textarea id="indicaciones" placeholder="Ej: el gancho tiene que ser la parte de los 3 clientes; más corto, menos de 40 s"></textarea>
@@ -385,6 +392,20 @@ $("#main").addEventListener("input", (e) => {
   }
 });
 
+$("#main").addEventListener("change", async (e) => {
+  const i = e.target.dataset.subirbroll;
+  if (i === undefined || !e.target.files[0]) return;
+  const f = e.target.files[0], fd = new FormData();
+  fd.append("archivo", f);
+  try {
+    const r = await api(`/api/proyectos/${S.p.id}/broll-archivo`, { method: "POST", body: fd });
+    const b = S.plan.broll[+i];
+    delete b.imagen; delete b.video;
+    b[r.tipo] = r.nombre;
+    marcarSucio(); vistaPieza();
+  } catch (err) { fallo(err); }
+});
+
 $("#main").addEventListener("click", async (e) => {
   const t = e.target.closest("button, .tab, .cand");
   if (!t) return;
@@ -403,7 +424,7 @@ $("#main").addEventListener("click", async (e) => {
     const [k, i] = t.dataset.quitar.split(":");
     p[k].splice(+i, 1); marcarSucio(); return vistaPieza();
   }
-  if (t.dataset.sinimg) { delete p.broll[+t.dataset.sinimg].imagen; marcarSucio(); return vistaPieza(); }
+  if (t.dataset.sinimg) { delete p.broll[+t.dataset.sinimg].imagen; delete p.broll[+t.dataset.sinimg].video; marcarSucio(); return vistaPieza(); }
   if (t.dataset.agregar) {
     const k = t.dataset.agregar;
     p[k] = p[k] || [];
@@ -452,7 +473,8 @@ async function accion(acc) {
     }
     case "broll": {
       const cant = S.plan.broll.filter((b) => b.prompt && !b.imagen && !b.video).length;
-      if (!confirm(`Se van a generar ${cant} imagen(es) con tu clave de OpenAI o Gemini. Cada una tiene costo. ¿Seguir?`)) return;
+      const via = S.cfg?.codex?.conectado ? "con Codex (cuentan dentro del límite diario de tu plan de ChatGPT)" : "con tu clave de OpenAI o Gemini (cada una tiene costo)";
+      if (!confirm(`Se van a generar ${cant} imagen(es) ${via}. ¿Seguir?`)) return;
       await guardar();
       return lanzar(`/api/proyectos/${id}/broll/${n}?calidad=${$("#calidad").value}`);
     }
@@ -494,7 +516,7 @@ function pintarConfig() {
   const c = S.cfg, a = c.anthropic, g = c.chatgpt;
   $("#cfg-estado").innerHTML = [
     ["ffmpeg", c.ffmpeg], ["Subtítulos (libass)", c.libass], ["Modelo de transcripción", c.modelo_descargado],
-    ["OpenAI (b-roll)", c.claves.OPENAI_API_KEY], ["Gemini (b-roll)", c.claves.GEMINI_API_KEY],
+    ["Codex (b-roll con tu plan)", c.codex?.conectado], ["OpenAI (b-roll)", c.claves.OPENAI_API_KEY], ["Gemini (b-roll)", c.claves.GEMINI_API_KEY],
   ].map(([n, ok]) => `<span class="punto ${ok ? "si" : "no"}">${n}</span>`).join("");
 
   $("#cfg-motor").innerHTML = [
@@ -519,7 +541,7 @@ function pintarConfig() {
         <button type="button" class="btn chatgpt" id="cfg-gpt-login">Continue with ChatGPT</button>
         ${S.esperandoLogin ? `<span class="sutil chico"><span class="spin"></span>Esperando que termines en la otra pestaña…</span>` : ""}`;
     }
-    html += `<p class="sutil chico">Con el plan de ChatGPT no se pueden generar imágenes: para el b-roll hace falta una clave de API.</p>`;
+    html += `<p class="sutil chico">Las imágenes del b-roll se generan con Codex, que usa este mismo plan de ChatGPT.</p>`;
   } else if (a.conectado) {
     html = `<div class="fila"><span class="punto si">Conectado ${a.modo === "clave" ? "con clave de API" : "con tu cuenta"}</span><span class="espacio"></span>
       ${a.modo === "clave" ? `<button type="button" class="btn mini" id="cfg-quitar">Quitar clave</button>`

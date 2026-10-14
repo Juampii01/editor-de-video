@@ -69,13 +69,16 @@ aceptás usar tu plan en esta app y listo. El uso cuenta dentro de los límites 
 elegir el modelo entre los que tenga tu cuenta.
 
 Usa [Sign in with ChatGPT](https://developers.openai.com/siwc) para apps open source. Los tokens se
-guardan solo en tu compu, en `~/.config/editor-de-video/`. Con el plan de ChatGPT no se pueden
-generar imágenes, así que para el b-roll sigue haciendo falta una clave de API.
+guardan solo en tu compu, en `~/.config/editor-de-video/`.
 
 ## B-roll con IA (opcional)
 
-Claude sugiere imágenes de apoyo para los momentos concretos del video. Para generarlas, cargá en
-Configuración una clave de **OpenAI** (GPT Image) o **Gemini** (Nano Banana). La app te dice cuántas
+La IA sugiere imágenes de apoyo para los momentos concretos del video. Para generarlas tenés dos caminos:
+
+- **Con tu plan de ChatGPT, sin clave:** si tenés la app de ChatGPT (trae Codex) o
+  [Codex CLI](https://github.com/openai/codex) con sesión iniciada (`codex login`), la app le pide cada
+  imagen a Codex. Tarda alrededor de un minuto por imagen, y Codex corta en torno a 60 imágenes por día.
+- **Con una clave de API:** cargá en Configuración una clave de **OpenAI** (GPT Image) o **Gemini** (Nano Banana). La app te dice cuántas
 imágenes va a generar antes de hacerlo, porque cada una tiene costo. También podés usar tus propias
 imágenes o no usar b-roll.
 

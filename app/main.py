@@ -29,6 +29,7 @@ EXT_IMG = {".png", ".jpg", ".jpeg", ".webp"}
 
 sys.path.insert(0, SCRIPTS)
 import editar  # noqa: E402  (piezas() es la misma lógica de silencios del render)
+import generar_broll as broll  # noqa: E402  (para saber si Codex está disponible)
 
 from . import chatgpt, ia  # noqa: E402
 
@@ -258,6 +259,7 @@ def ver_config(forzar: bool = False):
             "anthropic": {"conectado": s["ok"], "modo": modo_anthropic(), "detalle": s["detalle"],
                           "ant": bool(shutil.which("ant"))},
             "chatgpt": chatgpt.estado(),
+            "codex": {"instalado": bool(broll.codex_bin()), "conectado": broll.codex_conectado()},
             **motor(),
             "ffmpeg": bool(shutil.which("ffmpeg")),
             "libass": preparar_ffmpeg(),
@@ -453,6 +455,20 @@ async def _guardar_imagen(pid, img):
     return nombre
 
 
+@app.post("/api/proyectos/{pid}/broll-archivo")
+async def subir_broll(pid: str, archivo: UploadFile = File(...)):
+    """Imagen o clip propio para un b-roll (en lugar de generarlo con IA)."""
+    ext = os.path.splitext(archivo.filename or "")[1].lower()
+    if ext in EXT_IMG:
+        return {"tipo": "imagen", "nombre": await _guardar_imagen(pid, archivo)}
+    if ext not in EXT_VIDEO:
+        raise HTTPException(400, "Subí una imagen (PNG, JPG) o un clip de video")
+    nombre = "broll-" + re.sub(r"[^A-Za-z0-9._-]+", "-", os.path.basename(archivo.filename))
+    with open(ruta(pid, nombre), "wb") as fh:
+        shutil.copyfileobj(archivo.file, fh, 1024 * 1024)
+    return {"tipo": "video", "nombre": nombre}
+
+
 @app.post("/api/proyectos/{pid}/imagenes")
 async def subir_imagenes(pid: str, imagenes: list[UploadFile] = File(...)):
     return {"imagenes": [await _guardar_imagen(pid, i) for i in imagenes]}
@@ -570,8 +586,10 @@ def duracion_plan(pid, plan):
 
 @app.post("/api/proyectos/{pid}/broll/{n}")
 def generar_broll(pid: str, n: int, calidad: str = "medium"):
-    if not (os.environ.get("OPENAI_API_KEY") or os.environ.get("GEMINI_API_KEY")):
-        raise HTTPException(400, "Falta una clave de OpenAI o Gemini para generar imágenes.")
+    if not (broll.codex_conectado() or os.environ.get("OPENAI_API_KEY")
+            or os.environ.get("GEMINI_API_KEY")):
+        raise HTTPException(400, "Para generar imágenes iniciá sesión en Codex con tu cuenta de ChatGPT "
+                                 "(codex login) o cargá una clave de OpenAI o Gemini.")
     if calidad not in ("low", "medium", "high"):
         raise HTTPException(400, "Calidad inválida")
     plan_path = ruta(pid, f"plan-{n}.json")

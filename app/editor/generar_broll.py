@@ -2,20 +2,29 @@
 """Genera las imágenes de b-roll que pide el plan, con la API que elija el usuario.
 
 Uso:
-    python3 generar_broll.py plan.json [--proveedor openai|google] [--calidad low|medium|high]
+    python3 generar_broll.py plan.json [--proveedor codex|openai|google] [--calidad low|medium|high]
 
 Cada entrada de "broll" en el plan que tenga "prompt" y no tenga "imagen" se genera,
 se guarda al lado del plan (broll-1.png, broll-2.png...) y el plan se actualiza solo.
 
+Proveedores:
+    codex            -> Codex CLI con la sesión de ChatGPT del usuario (codex login). Sin clave de API:
+                        usa el plan de ChatGPT. Codex corta la generación en torno a 60 imágenes por día.
+                        Ruta del programa: variable CODEX_BIN, o `codex` en el PATH, o la que trae la app ChatGPT.
 Claves (cada usuario usa la suya, nada se guarda en el código):
     OPENAI_API_KEY   -> GPT Image   (modelo: variable OPENAI_IMAGE_MODEL, por defecto gpt-image-1)
     GEMINI_API_KEY   -> Nano Banana (modelo: variable GEMINI_IMAGE_MODEL, por defecto gemini-2.5-flash-image)
 """
 import argparse
 import base64
+import glob
 import json
 import os
+import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 
@@ -58,7 +67,48 @@ def google_img(prompt, calidad):
     sys.exit("Nano Banana no devolvió imagen: " + json.dumps(r)[:400])
 
 
-PROVEEDORES = {"openai": openai_img, "google": google_img}
+CODEX_APP = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex"
+CODEX_IMGS = os.path.join(os.path.expanduser("~"), ".codex", "generated_images")
+
+
+def codex_bin():
+    for c in (os.environ.get("CODEX_BIN"), shutil.which("codex"), CODEX_APP):
+        if c and os.path.isfile(c) and os.access(c, os.X_OK):
+            return c
+    return None
+
+
+def codex_conectado():
+    c = codex_bin()
+    if not c:
+        return False
+    r = subprocess.run([c, "login", "status"], capture_output=True, text=True)
+    return r.returncode == 0 and "logged in" in (r.stdout + r.stderr).lower()
+
+
+def codex_img(prompt, calidad):
+    """Le pide la imagen a Codex y la toma de ~/.codex/generated_images/<sesión>/."""
+    c = codex_bin() or sys.exit("No se encontró Codex. Instalá la app de ChatGPT o Codex CLI y entrá con: codex login")
+    pedido = ("Generate exactly ONE image with your image generation tool, vertical 9:16 (1024x1536). "
+              "Do not write files, do not run commands, do not ask questions: just generate the image.\n\n" + prompt)
+    with tempfile.TemporaryDirectory() as d:
+        r = subprocess.run([c, "exec", "--ephemeral", "--ignore-user-config", "--skip-git-repo-check",
+                            "-s", "read-only", "-C", d], input=pedido, capture_output=True, text=True, timeout=600)
+    salida = r.stdout + r.stderr
+    if re.search(r"usage limit|usage_limit_reached", salida, re.I):
+        sys.exit("Codex llegó al límite de imágenes de tu plan por hoy. Probá mañana o usá una clave de API.")
+    m = re.search(r"session id:\s*(\S+)", salida)
+    pngs = sorted(glob.glob(os.path.join(CODEX_IMGS, m.group(1), "**", "*.png"), recursive=True),
+                  key=os.path.getmtime) if m else []
+    if not pngs:
+        if "not logged in" in salida.lower() or "login" in salida.lower() and r.returncode:
+            sys.exit("Codex no tiene sesión iniciada. Abrí una terminal y corré: codex login")
+        sys.exit("Codex no generó la imagen: " + (salida.strip().splitlines() or ["sin respuesta"])[-1][:300])
+    with open(pngs[-1], "rb") as fh:
+        return fh.read()
+
+
+PROVEEDORES = {"codex": codex_img, "openai": openai_img, "google": google_img}
 
 
 def main():
@@ -68,10 +118,12 @@ def main():
     p.add_argument("--calidad", choices=["low", "medium", "high"], default="medium")
     a = p.parse_args()
 
-    prov = a.proveedor or ("openai" if os.environ.get("OPENAI_API_KEY") else
+    prov = a.proveedor or ("codex" if codex_conectado() else
+                           "openai" if os.environ.get("OPENAI_API_KEY") else
                            "google" if os.environ.get("GEMINI_API_KEY") else None)
     if not prov:
-        sys.exit("No hay clave de API. Definí OPENAI_API_KEY o GEMINI_API_KEY.")
+        sys.exit("No hay cómo generar imágenes: iniciá sesión en Codex (codex login) "
+                 "o definí OPENAI_API_KEY o GEMINI_API_KEY.")
 
     with open(a.plan, encoding="utf-8") as fh:
         plan = json.load(fh)
