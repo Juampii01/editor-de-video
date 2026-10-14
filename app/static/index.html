@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor de video</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<header class="top">
+  <div class="marca"><span class="logo">▶</span> Editor de video</div>
+  <button class="btn ghost" id="btn-config">⚙ Configuración</button>
+</header>
+<div class="layout">
+  <aside class="lateral">
+    <button class="btn primario ancho" id="btn-nuevo">+ Nuevo video</button>
+    <div class="lista" id="lista"></div>
+  </aside>
+  <main id="main"></main>
+</div>
+
+<dialog id="dlg-config">
+  <form method="dialog" class="dlg">
+    <h2>Configuración</h2>
+    <div id="cfg-estado" class="cfg-estado"></div>
+    <h3>Cuenta de Anthropic</h3>
+    <div id="cfg-cuenta"></div>
+    <details id="cfg-avanzado">
+      <summary class="sutil chico">Usar una clave de API en lugar de iniciar sesión</summary>
+      <label style="margin-top:10px">Clave de Anthropic <input type="password" name="ANTHROPIC_API_KEY" placeholder="sk-ant-…"></label>
+    </details>
+    <h3>B-roll (opcional)</h3>
+    <p class="sutil chico">Las claves se guardan solo en tu compu, en el archivo <code>.env</code> del proyecto.</p>
+    <label>OpenAI (GPT Image) <input type="password" name="OPENAI_API_KEY" placeholder="sk-…"></label>
+    <label>Gemini (Nano Banana) <input type="password" name="GEMINI_API_KEY" placeholder="AIza…"></label>
+    <div class="fila fin">
+      <button class="btn ghost" value="cancel">Cerrar</button>
+      <button class="btn primario" id="cfg-guardar" value="ok">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {"name": "editor", "runtimeExecutable": ".venv/bin/uvicorn", "runtimeArgs": ["app.main:app", "--port", "8000"], "port": 8000}
+  ]
+}
