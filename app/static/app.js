@@ -257,7 +257,8 @@ function vistaPieza() {
         <td><input data-k="textos.${i}.texto" value="${esc(t.texto)}"></td>
         <td style="width:110px"><select data-k="textos.${i}.posicion">
           <option value="arriba" ${t.posicion !== "centro" ? "selected" : ""}>Arriba</option>
-          <option value="centro" ${t.posicion === "centro" ? "selected" : ""}>Centro</option></select></td>`)}
+          <option value="centro" ${t.posicion === "centro" ? "selected" : ""} ${doble ? "disabled" : ""}>Centro</option></select></td>`)}
+      ${doble ? `<p class="sutil chico">En pantalla doble los textos van arriba: el centro es para los subtítulos.</p>` : ""}
       <button class="btn mini" data-agregar="textos">+ Texto</button>
 
       ${doble ? `<h3>Gráficos (parte de arriba)</h3>

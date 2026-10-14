@@ -159,7 +159,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 ev.append(f"Dialogue: 1,{ass_t(ini)},{ass_t(fin)},Sub,,0,0,0,,{' '.join(partes)}")
 
     for t in plan.get("textos", []):
-        tag = "{\\an5}" if t.get("posicion") == "centro" else ""
+        # En pantalla doble el centro es de los subtítulos: el texto va siempre arriba.
+        tag = "{\\an5}" if t.get("posicion") == "centro" and not doble else ""
         fin = min(float(t["hasta"]), total)
         ev.append(f"Dialogue: 2,{ass_t(float(t['desde']))},{ass_t(fin)},Titulo,,0,0,0,,{tag}{limpiar(t['texto'])}")
 

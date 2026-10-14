@@ -29,6 +29,7 @@ Reglas de corte:
 
 Textos en pantalla: uno o dos como mucho, de máximo 6 palabras. El primero refuerza el
 gancho y aparece al inicio. Se expresan con tiempos del ORIGINAL que caigan dentro de un corte.
+En pantalla doble usá siempre posicion "arriba" (el centro es de los subtítulos).
 
 B-roll: solo donde se dice algo concreto que se puede mostrar. Entre 0 y 4, de 2 a 3
 segundos cada uno, nunca en el gancho ni en el llamado a la acción. El prompt en inglés,
