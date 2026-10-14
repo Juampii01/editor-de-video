@@ -175,6 +175,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 def render(video, plan, pzs, total, ass_name, salida, workdir, borrador, plan_dir):
     doble = plan.get("formato") == "doble"
     x = float(plan.get("encuadre_x", 0.5))
+    y = float(plan.get("encuadre_y", 0.5))
     graficos = plan.get("graficos", []) if doble else []
 
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", video]
@@ -189,7 +190,7 @@ def render(video, plan, pzs, total, ass_name, salida, workdir, borrador, plan_di
 
     if doble:
         f.append(f"[vc]scale={W}:{H//2}:force_original_aspect_ratio=increase,"
-                 f"crop={W}:{H//2}:(in_w-{W})*{x}:(in_h-{H//2})/2,setsar=1,fps=30,"
+                 f"crop={W}:{H//2}:(in_w-{W})*{x}:(in_h-{H//2})*{y},setsar=1,fps=30,"
                  f"pad={W}:{H}:0:{H//2}:color=0x111111[b0]")
         last = "b0"
         for j, g in enumerate(graficos, start=1):
@@ -199,7 +200,7 @@ def render(video, plan, pzs, total, ass_name, salida, workdir, borrador, plan_di
             last = f"b{j}"
     else:
         f.append(f"[vc]scale={W}:{H}:force_original_aspect_ratio=increase,"
-                 f"crop={W}:{H}:(in_w-{W})*{x}:(in_h-{H})/2,setsar=1,fps=30[b0]")
+                 f"crop={W}:{H}:(in_w-{W})*{x}:(in_h-{H})*{y},setsar=1,fps=30[b0]")
         last = "b0"
 
     # b-roll: imágenes (con zoom lento) o clips de video a pantalla completa,

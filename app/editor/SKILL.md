@@ -81,14 +81,16 @@ Creá `CARPETA/plan.json`. Los `cortes` van en el orden final y con tiempos del 
     "palabras_por_linea": 3,
     "mayusculas": false
   },
-  "encuadre_x": 0.5
+  "encuadre_x": 0.5,
+  "encuadre_y": 0.5
 }
 ```
 
 - `formato`: `"reel"` o `"doble"`. `graficos` solo se usa en `"doble"`. Las rutas de las imágenes son relativas a la carpeta del plan.
 - `recortar_silencios`: pausas más largas que esto (en segundos) se cortan. `0.45` es dinámico; subilo a `0.7` si el usuario quiere un ritmo más tranquilo, `null` para no tocar las pausas.
 - `textos`: uno o dos por pieza como mucho, cortos. El primero refuerza el gancho. `posicion`: `"arriba"` o `"centro"`.
-- `encuadre_x`: dónde está la persona en un video horizontal (0 = izquierda, 0.5 = centro, 1 = derecha). Si el video ya es vertical, dejalo en 0.5. Si dudás, sacá un fotograma con `ffmpeg -ss 5 -i VIDEO -frames:v 1 frame.png` y miralo.
+- `encuadre_x`: dónde está la persona en un video horizontal (0 = izquierda, 0.5 = centro, 1 = derecha). Si el video ya es vertical, dejalo en 0.5.
+- `encuadre_y`: lo mismo en vertical (0 = arriba, 0.5 = centro, 1 = abajo). Importa cuando sobra video arriba y abajo, por ejemplo un video vertical en pantalla doble: subilo hacia 0.2–0.3 si la cara queda cortada. Si dudás, sacá un fotograma con `ffmpeg -ss 5 -i VIDEO -frames:v 1 frame.png` y miralo.
 - Si el usuario tiene colores de marca, usalos en `resaltado`.
 
 ### B-roll

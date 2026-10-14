@@ -198,6 +198,7 @@ def plan_desde_ia(r, formato, palabras, previo=None):
         "subtitulos": previo.get("subtitulos", {"activar": True, "color": "#FFFFFF", "resaltado": "#FFD400",
                                                 "palabras_por_linea": 3, "mayusculas": False}),
         "encuadre_x": previo.get("encuadre_x", 0.5),
+        "encuadre_y": previo.get("encuadre_y", 0.5),
     }
     pzs = editar.piezas(plan, palabras)
     total = sum(e - s for s, e in pzs)

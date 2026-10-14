@@ -297,8 +297,11 @@ function vistaPieza() {
       </div>
       <h3>Encuadre</h3>
       <div class="encuadre" id="encuadre"><img id="frame" src="/api/proyectos/${S.p.id}/frame?t=${Math.min(5, (S.p.duracion || 10) / 2)}"><div class="caja" id="caja"></div></div>
-      <input type="range" min="0" max="1" step="0.01" data-k="encuadre_x" data-num value="${plan.encuadre_x ?? 0.5}" style="margin-top:8px">
-      <p class="sutil chico">Mové la barra para que la cara quede dentro del recuadro.</p>
+      <label id="barra-x" style="margin-top:10px" hidden>Horizontal
+        <input type="range" min="0" max="1" step="0.01" data-k="encuadre_x" data-num value="${plan.encuadre_x ?? 0.5}"></label>
+      <label id="barra-y" style="margin-top:10px" hidden>Vertical
+        <input type="range" min="0" max="1" step="0.01" data-k="encuadre_y" data-num value="${plan.encuadre_y ?? 0.5}"></label>
+      <p class="sutil chico">Mové la barra para que la cara quede dentro del recuadro amarillo: lo de afuera se recorta.</p>
     </div>
   </div>
 
@@ -339,12 +342,18 @@ function filas(clave, lista = [], celdas) {
 function dibujarCaja() {
   const img = $("#frame"), caja = $("#caja");
   if (!img || !img.naturalWidth) return;
-  const doble = S.plan.formato === "doble";
-  const aspecto = img.naturalHeight / img.naturalWidth;
-  const ancho = Math.min(1, (doble ? 1080 / 960 : 1080 / 1920) * aspecto);
-  const x = S.plan.encuadre_x ?? 0.5;
-  caja.style.width = `${ancho * 100}%`;
-  caja.style.left = `${x * (1 - ancho) * 100}%`;
+  // El video se escala hasta cubrir el recuadro de salida y se recorta lo que sobra:
+  // a los costados (video más ancho que la salida) o arriba y abajo (más alto).
+  const salida = S.plan.formato === "doble" ? 1080 / 960 : 1080 / 1920;
+  const fuente = img.naturalWidth / img.naturalHeight;
+  const ancho = Math.min(1, salida / fuente), alto = Math.min(1, fuente / salida);
+  const x = S.plan.encuadre_x ?? 0.5, y = S.plan.encuadre_y ?? 0.5;
+  Object.assign(caja.style, {
+    width: `${ancho * 100}%`, height: `${alto * 100}%`, bottom: "auto",
+    left: `${x * (1 - ancho) * 100}%`, top: `${y * (1 - alto) * 100}%`,
+  });
+  $("#barra-x").hidden = ancho > 0.995;
+  $("#barra-y").hidden = alto > 0.995;
 }
 
 function setRuta(obj, k, val) {
@@ -368,7 +377,7 @@ $("#main").addEventListener("input", (e) => {
   if (el.type === "number" || el.dataset.num !== undefined) val = val === "" ? null : Number(val);
   setRuta(S.plan, k, val);
   marcarSucio();
-  if (k === "encuadre_x") dibujarCaja();
+  if (k === "encuadre_x" || k === "encuadre_y") dibujarCaja();
   if (/^cortes\.\d+\.(desde|hasta)$/.test(k)) {
     const i = +k.split(".")[1], c = S.plan.cortes[i];
     el.closest("tr").querySelector(".dice").textContent = textoEntre(c.desde, c.hasta);
