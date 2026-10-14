@@ -63,11 +63,14 @@ def _escribir(path, data):
 
 
 def _host_id():
-    h = _leer(HOST)
-    if not h:
-        h = {"ext_agent_host_id": str(uuid.uuid4())}
-        _escribir(HOST, h)
-    return h["ext_agent_host_id"]
+    # OpenAI espera un URN: urn:uuid:<uuid>
+    h = _leer(HOST) or {}
+    hid = h.get("ext_agent_host_id") or str(uuid.uuid4())
+    if not hid.startswith("urn:uuid:"):
+        hid = f"urn:uuid:{hid}"
+    if h.get("ext_agent_host_id") != hid:
+        _escribir(HOST, {"ext_agent_host_id": hid})
+    return hid
 
 
 def _sesion():
